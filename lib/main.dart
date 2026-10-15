@@ -2,16 +2,46 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
-void main() {
-  runApp(const EventBookingApp());
+bool rememberSession = false;
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();
+  rememberSession = prefs.getBool('remember_session') ?? false;
+
+  final savedUserName = prefs.getString('saved_user_name');
+  final savedEmail = prefs.getString('saved_email');
+  final savedIsAdmin = prefs.getBool('saved_is_admin') ?? false;
+
+  runApp(
+    EventBookingApp(
+      initialUserName: savedUserName,
+      initialEmail: savedEmail,
+      initialIsAdmin: savedIsAdmin,
+    ),
+  );
 }
 
 class EventBookingApp extends StatelessWidget {
-  const EventBookingApp({super.key});
+  final String? initialUserName;
+  final String? initialEmail;
+  final bool initialIsAdmin;
+
+  const EventBookingApp({
+    super.key,
+    this.initialUserName,
+    this.initialEmail,
+    this.initialIsAdmin = false,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final bool hasSavedSession = rememberSession &&
+        initialUserName != null &&
+        initialEmail != null;
+
     return ValueListenableBuilder<bool>(
       valueListenable: appThemeNotifier,
       builder: (context, isDarkMode, _) {
@@ -33,7 +63,13 @@ class EventBookingApp extends StatelessWidget {
             ),
             scaffoldBackgroundColor: const Color(0xFF111827),
           ),
-          home: const LoginPage(),
+          home: hasSavedSession
+              ? MainPage(
+                  userName: initialUserName!,
+                  email: initialEmail!,
+                  isAdmin: initialIsAdmin,
+                )
+              : const LoginPage(),
         );
       },
     );
@@ -215,7 +251,22 @@ class _LoginPageState extends State<LoginPage> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
 
-  void login() {
+  Future<void> _saveLoginSession(String name, String email, bool isAdmin) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('remember_session', rememberSession);
+
+    if (rememberSession) {
+      await prefs.setString('saved_user_name', name);
+      await prefs.setString('saved_email', email);
+      await prefs.setBool('saved_is_admin', isAdmin);
+    } else {
+      await prefs.remove('saved_user_name');
+      await prefs.remove('saved_email');
+      await prefs.remove('saved_is_admin');
+    }
+  }
+
+  Future<void> login() async {
     if (emailController.text.trim().isEmpty ||
         passwordController.text.trim().isEmpty) {
       showMessage('Please enter your email and password.');
@@ -226,6 +277,8 @@ class _LoginPageState extends State<LoginPage> {
     final password = passwordController.text.trim();
 
     if (email == adminEmail && password == adminPassword) {
+      await _saveLoginSession('Admin', adminEmail, true);
+      if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -240,6 +293,8 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     final name = registeredName.isEmpty ? 'Guest User' : registeredName;
+    await _saveLoginSession(name, email, false);
+    if (!mounted) return;
 
     Navigator.pushReplacement(
       context,
@@ -2136,7 +2191,19 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   bool darkMode = appThemeNotifier.value;
-  bool saveSession = true;
+  bool saveSession = rememberSession;
+
+  Future<void> _updateRememberSession(bool value) async {
+    rememberSession = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('remember_session', value);
+
+    if (!value) {
+      await prefs.remove('saved_user_name');
+      await prefs.remove('saved_email');
+      await prefs.remove('saved_is_admin');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2164,10 +2231,11 @@ class _SettingsPageState extends State<SettingsPage> {
             title: const Text('Remember session'),
             subtitle: const Text('Keep your login session active on the device.'),
             value: saveSession,
-            onChanged: (value) {
+            onChanged: (value) async {
               setState(() {
                 saveSession = value;
               });
+              await _updateRememberSession(value);
             },
           ),
           ListTile(
@@ -2301,12 +2369,21 @@ class ProfilePage extends StatelessWidget {
               width: double.infinity,
               height: 52,
               child: OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (_) => const LoginPage()),
-                    (route) => false,
-                  );
+                onPressed: () async {
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.remove('saved_user_name');
+                  await prefs.remove('saved_email');
+                  await prefs.remove('saved_is_admin');
+                  await prefs.setBool('remember_session', false);
+                  rememberSession = false;
+
+                  if (context.mounted) {
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LoginPage()),
+                      (route) => false,
+                    );
+                  }
                 },
                 icon: const Icon(Icons.logout),
                 label: const Text('LOG OUT'),

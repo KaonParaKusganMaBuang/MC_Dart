@@ -1,8 +1,13 @@
 import 'package:event_booking_app/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    rememberSession = false;
+  });
   testWidgets('booking list supports delete action', (WidgetTester tester) async {
     bookings.clear();
     bookings.add(
@@ -109,5 +114,16 @@ void main() {
     );
 
     expect(find.byTooltip('Edit event'), findsWidgets);
+  });
+
+  testWidgets('remember session defaults to off', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: SettingsPage(),
+      ),
+    );
+
+    final switchTile = tester.widget<SwitchListTile>(find.byType(SwitchListTile).at(1));
+    expect(switchTile.value, isFalse);
   });
 }
