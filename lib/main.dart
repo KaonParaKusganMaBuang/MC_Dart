@@ -1,30 +1,44 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 
 void main() {
   runApp(const EventBookingApp());
 }
-
 
 class EventBookingApp extends StatelessWidget {
   const EventBookingApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Event & Booking System',
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.blue,
-        ),
-        scaffoldBackgroundColor: const Color(0xfff7f9fc),
-      ),
-      home: const LoginPage(),
+    return ValueListenableBuilder<bool>(
+      valueListenable: appThemeNotifier,
+      builder: (context, isDarkMode, _) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'Event & Booking System',
+          themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
+          theme: ThemeData(
+            useMaterial3: true,
+            colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+            scaffoldBackgroundColor: const Color(0xFFF7F9FC),
+          ),
+          darkTheme: ThemeData(
+            useMaterial3: true,
+            brightness: Brightness.dark,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: Colors.blue,
+              brightness: Brightness.dark,
+            ),
+            scaffoldBackgroundColor: const Color(0xFF111827),
+          ),
+          home: const LoginPage(),
+        );
+      },
     );
   }
 }
-
 
 class Event {
   final int id;
@@ -48,69 +62,6 @@ class Event {
   });
 }
 
-
-const List<Event> eventList = [
-  Event(
-    id: 1,
-    name: 'Music Festival 2026',
-    description:
-        'Enjoy an amazing night of music, entertainment and live performances. '
-        'Experience live artists and unforgettable moments with your friends.',
-    location: 'Cebu City',
-    date: 'December 20, 2026',
-    price: 10,
-    icon: Icons.music_note,
-    color: Colors.deepPurple,
-  ),
-  Event(
-    id: 2,
-    name: 'Flutter Developer Meetup',
-    description:
-        'Meet developers and learn about Flutter and modern mobile development. '
-        'Connect with other developers and share ideas.',
-    location: 'Cebu IT Park',
-    date: 'November 15, 2026',
-    price: 10,
-    icon: Icons.code,
-    color: Colors.blue,
-  ),
-  Event(
-    id: 3,
-    name: 'Business Conference',
-    description:
-        'Connect with entrepreneurs and business professionals. '
-        'Learn new strategies and build valuable connections.',
-    location: 'Tagbilaran City',
-    date: 'November 30, 2026',
-    price: 10,
-    icon: Icons.business_center,
-    color: Colors.orange,
-  ),
-  Event(
-    id: 4,
-    name: 'Food Fair',
-    description:
-        'Enjoy delicious food from different local restaurants and food vendors.',
-    location: 'Plaza Rizal',
-    date: 'September 20, 2026',
-    price: 5,
-    icon: Icons.restaurant,
-    color: Colors.red,
-  ),
-  Event(
-    id: 5,
-    name: 'Beach Cleanup',
-    description:
-        'Join our community beach cleanup and help keep our beautiful beaches clean.',
-    location: 'Alona Beach',
-    date: 'October 5, 2026',
-    price: 0,
-    icon: Icons.beach_access,
-    color: Colors.teal,
-  ),
-];
-
-
 class Booking {
   final Event event;
   final int quantity;
@@ -127,8 +78,131 @@ class Booking {
   });
 }
 
-List<Booking> bookings = [];
+const List<Event> fallbackEvents = [
+  Event(
+    id: 1,
+    name: 'Music Festival',
+    description:
+        'Enjoy an amazing night of music, live performances, and unforgettable entertainment with friends and family.',
+    location: 'Cebu City',
+    date: 'December 20, 2026',
+    price: 10,
+    icon: Icons.music_note,
+    color: Colors.deepPurple,
+  ),
+  Event(
+    id: 2,
+    name: 'Business Conference',
+    description:
+        'Connect with entrepreneurs, business leaders, and professionals to learn new ideas and grow your network.',
+    location: 'Cebu IT Park',
+    date: 'November 15, 2026',
+    price: 25,
+    icon: Icons.business_center,
+    color: Colors.blue,
+  ),
+  Event(
+    id: 3,
+    name: 'Food Fair',
+    description:
+        'Taste delicious meals, discover local vendors, and enjoy a lively community food experience.',
+    location: 'Plaza Rizal',
+    date: 'September 20, 2026',
+    price: 5,
+    icon: Icons.restaurant,
+    color: Colors.orange,
+  ),
+];
 
+List<Event> eventList = List<Event>.from(fallbackEvents);
+List<Booking> bookings = [];
+String registeredName = '';
+String registeredEmail = '';
+bool eventNotificationsEnabled = true;
+bool bookingNotificationsEnabled = true;
+bool appNotificationsEnabled = true;
+final ValueNotifier<bool> appThemeNotifier = ValueNotifier<bool>(false);
+
+Future<List<Event>> fetchEventFeed() async {
+  final response = await http
+      .get(Uri.parse('https://jsonplaceholder.typicode.com/posts?_limit=5'))
+      .timeout(const Duration(seconds: 12));
+
+  if (response.statusCode != 200) {
+    throw Exception('Unable to load live event data.');
+  }
+
+  final decoded = jsonDecode(response.body);
+  if (decoded is! List) {
+    throw Exception('Unexpected API response format.');
+  }
+
+  final englishNames = [
+    'Music Festival',
+    'Business Conference',
+    'Food Fair',
+    'City Night Market',
+    'Beach Cleanup',
+  ];
+
+  final englishDescriptions = [
+    'Enjoy a lively music night with performers, dancing, and unforgettable entertainment.',
+    'Attend a business event with networking sessions, workshops, and inspiring speakers.',
+    'Explore food stalls, local flavors, and exciting culinary treats in one place.',
+    'Discover local crafts, trendy vendors, and a fun night out in the city center.',
+    'Join the community in keeping our beaches clean and protecting the environment.',
+  ];
+
+  final locations = [
+    'Cebu City',
+    'Davao City',
+    'Makati',
+    'Tagbilaran City',
+    'Bohol Beach',
+  ];
+
+  final icons = [
+    Icons.music_note,
+    Icons.business_center,
+    Icons.restaurant,
+    Icons.storefront,
+    Icons.beach_access,
+  ];
+
+  final colors = [
+    Colors.deepPurple,
+    Colors.blue,
+    Colors.orange,
+    Colors.red,
+    Colors.green,
+  ];
+
+  return decoded.asMap().entries.map((entry) {
+    final index = entry.key;
+    final item = entry.value as Map<String, dynamic>;
+    final title = englishNames[index % englishNames.length];
+    final body = englishDescriptions[index % englishDescriptions.length];
+    final safeTitle = title.length > 30 ? '${title.substring(0, 27)}...' : title;
+
+    return Event(
+      id: int.tryParse(item['id']?.toString() ?? '${index + 1}') ?? (index + 1),
+      name: safeTitle,
+      description: body,
+      location: locations[index % locations.length],
+      date: DateTime.now()
+          .add(Duration(days: index * 5 + 10))
+          .toString()
+          .split(' ')
+          .first,
+      price: index % 3 == 0 ? 0 : 15.0 + (index * 5),
+      icon: icons[index % icons.length],
+      color: colors[index % colors.length],
+    );
+  }).toList();
+}
+
+const String adminEmail = 'admin@event.com';
+const String adminPassword = 'admin123';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -148,14 +222,32 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    String name = registeredName.isEmpty ? 'User' : registeredName;
+    final email = emailController.text.trim();
+    final password = passwordController.text.trim();
+
+    if (email == adminEmail && password == adminPassword) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const MainPage(
+            userName: 'Admin',
+            email: adminEmail,
+            isAdmin: true,
+          ),
+        ),
+      );
+      return;
+    }
+
+    final name = registeredName.isEmpty ? 'Guest User' : registeredName;
 
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (_) => MainPage(
           userName: name,
-          email: emailController.text.trim(),
+          email: email,
+          isAdmin: false,
         ),
       ),
     );
@@ -176,13 +268,12 @@ class _LoginPageState extends State<LoginPage> {
             padding: const EdgeInsets.all(25),
             child: Column(
               children: [
-                // LOGO
                 Container(
-                  width: 90,
-                  height: 90,
+                  width: 95,
+                  height: 95,
                   decoration: BoxDecoration(
                     color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(25),
+                    borderRadius: BorderRadius.circular(28),
                   ),
                   child: const Icon(
                     Icons.event_available,
@@ -190,21 +281,17 @@ class _LoginPageState extends State<LoginPage> {
                     color: Colors.blue,
                   ),
                 ),
-
                 const SizedBox(height: 20),
-
                 const Text(
                   'Event & Booking System',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 27,
+                    fontSize: 28,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xff102a5c),
+                    color: Color(0xFF102A5C),
                   ),
                 ),
-
-                const SizedBox(height: 8),
-
+                const SizedBox(height: 10),
                 const Text(
                   'Login to continue',
                   style: TextStyle(
@@ -212,9 +299,7 @@ class _LoginPageState extends State<LoginPage> {
                     fontSize: 16,
                   ),
                 ),
-
                 const SizedBox(height: 35),
-
                 TextField(
                   controller: emailController,
                   keyboardType: TextInputType.emailAddress,
@@ -226,9 +311,7 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 15),
-
                 TextField(
                   controller: passwordController,
                   obscureText: true,
@@ -240,9 +323,7 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 25),
-
                 SizedBox(
                   width: double.infinity,
                   height: 52,
@@ -264,14 +345,11 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 20),
-
                 const Text(
                   "Don't have an account?",
                   style: TextStyle(color: Colors.grey),
                 ),
-
                 TextButton(
                   onPressed: () {
                     Navigator.push(
@@ -296,10 +374,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
-
-
-String registeredName = '';
-String registeredEmail = '';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -333,9 +407,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(
-        builder: (_) => LoginPage(),
-      ),
+      MaterialPageRoute(builder: (_) => const LoginPage()),
       (route) => false,
     );
 
@@ -378,9 +450,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   color: Colors.deepPurple,
                 ),
               ),
-
               const SizedBox(height: 20),
-
               const Text(
                 'Create Your Account',
                 style: TextStyle(
@@ -388,9 +458,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-
               const SizedBox(height: 30),
-
               TextField(
                 controller: nameController,
                 decoration: InputDecoration(
@@ -401,9 +469,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 15),
-
               TextField(
                 controller: emailController,
                 keyboardType: TextInputType.emailAddress,
@@ -415,9 +481,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 15),
-
               TextField(
                 controller: passwordController,
                 obscureText: true,
@@ -429,9 +493,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 15),
-
               TextField(
                 controller: confirmController,
                 obscureText: true,
@@ -443,9 +505,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 25),
-
               SizedBox(
                 width: double.infinity,
                 height: 52,
@@ -466,16 +526,12 @@ class _RegisterPageState extends State<RegisterPage> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 15),
-
               TextButton(
                 onPressed: () {
                   Navigator.pop(context);
                 },
-                child: const Text(
-                  'Already have an account? Login',
-                ),
+                child: const Text('Already have an account? Login'),
               ),
             ],
           ),
@@ -485,15 +541,16 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 }
 
-
 class MainPage extends StatefulWidget {
   final String userName;
   final String email;
+  final bool isAdmin;
 
   const MainPage({
     super.key,
     required this.userName,
     required this.email,
+    this.isAdmin = false,
   });
 
   @override
@@ -503,22 +560,22 @@ class MainPage extends StatefulWidget {
 class _MainPageState extends State<MainPage> {
   int selectedIndex = 0;
 
-  late List<Widget> pages;
+  late final List<Widget> pages;
 
   @override
   void initState() {
     super.initState();
-
     pages = [
       HomePage(
         userName: widget.userName,
+        isAdmin: widget.isAdmin,
         onExplore: () {
           setState(() {
             selectedIndex = 1;
           });
         },
       ),
-      const EventsPage(),
+      EventsPage(isAdmin: widget.isAdmin),
       const BookingTabPage(),
       ProfilePage(
         userName: widget.userName,
@@ -531,7 +588,6 @@ class _MainPageState extends State<MainPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: pages[selectedIndex],
-
       bottomNavigationBar: NavigationBar(
         selectedIndex: selectedIndex,
         onDestinationSelected: (index) {
@@ -566,26 +622,65 @@ class _MainPageState extends State<MainPage> {
   }
 }
 
-
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   final String userName;
+  final bool isAdmin;
   final VoidCallback onExplore;
 
   const HomePage({
     super.key,
     required this.userName,
+    required this.isAdmin,
     required this.onExplore,
   });
 
   @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadEvents();
+  }
+
+  Future<void> _loadEvents() async {
+    try {
+      final loadedEvents = await fetchEventFeed();
+      if (!mounted) return;
+      setState(() {
+        eventList = loadedEvents;
+        _isLoading = false;
+        _errorMessage = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        eventList = List<Event>.from(fallbackEvents);
+        _isLoading = false;
+        _errorMessage = 'Live data unavailable. Showing demo events.';
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // HEADER
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -600,16 +695,15 @@ class HomePage extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      userName,
+                      widget.userName,
                       style: const TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xff102a5c),
+                        color: Color(0xFF102A5C),
                       ),
                     ),
                   ],
                 ),
-
                 CircleAvatar(
                   backgroundColor: Colors.blue.shade100,
                   child: const Icon(
@@ -619,18 +713,15 @@ class HomePage extends StatelessWidget {
                 ),
               ],
             ),
-
             const SizedBox(height: 20),
-
-            // FEATURED EVENT
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(22),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
                   colors: [
-                    Color(0xff168cff),
-                    Color(0xff4d4df5),
+                    Color(0xFF168CFF),
+                    Color(0xFF4D4DF5),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(22),
@@ -646,9 +737,7 @@ class HomePage extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-
                   const SizedBox(height: 8),
-
                   const Text(
                     'Discover Amazing Events',
                     style: TextStyle(
@@ -657,9 +746,7 @@ class HomePage extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-
                   const SizedBox(height: 8),
-
                   const Text(
                     'Find events and book your tickets easily.',
                     style: TextStyle(
@@ -667,28 +754,60 @@ class HomePage extends StatelessWidget {
                       fontSize: 14,
                     ),
                   ),
-
                   const SizedBox(height: 18),
-
                   ElevatedButton(
-                    onPressed: onExplore,
+                    onPressed: widget.onExplore,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white,
                       foregroundColor: Colors.blue,
                     ),
                     child: const Text(
                       'Explore Events',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ),
                 ],
               ),
             ),
-
+            if (_errorMessage != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade100,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  _errorMessage!,
+                  style: const TextStyle(color: Colors.brown),
+                ),
+              ),
+            ],
             const SizedBox(height: 28),
-
+            if (widget.isAdmin)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.admin_panel_settings, color: Colors.green),
+                    SizedBox(width: 8),
+                    Text(
+                      'Admin mode active',
+                      style: TextStyle(
+                        color: Colors.green,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             const Text(
               'Upcoming Events',
               style: TextStyle(
@@ -696,12 +815,8 @@ class HomePage extends StatelessWidget {
                 fontWeight: FontWeight.bold,
               ),
             ),
-
             const SizedBox(height: 15),
-
-            ...eventList.take(3).map(
-              (event) => EventCard(event: event),
-            ),
+            ...eventList.take(3).map((event) => EventCard(event: event)),
           ],
         ),
       ),
@@ -709,9 +824,13 @@ class HomePage extends StatelessWidget {
   }
 }
 
-
 class EventsPage extends StatefulWidget {
-  const EventsPage({super.key});
+  final bool isAdmin;
+
+  const EventsPage({
+    super.key,
+    this.isAdmin = false,
+  });
 
   @override
   State<EventsPage> createState() => _EventsPageState();
@@ -720,19 +839,81 @@ class EventsPage extends StatefulWidget {
 class _EventsPageState extends State<EventsPage> {
   String searchText = '';
 
+  Future<void> _deleteEvent(Event event) async {
+    if (!widget.isAdmin) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Only admins can delete events.')),
+      );
+      return;
+    }
+
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete event?'),
+        content: Text('Delete ${event.name}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDelete != true) return;
+
+    if (!mounted) return;
+
+    final notify = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Send notification?'),
+        content: const Text('Would you like to notify users about this deletion?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('No'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Yes'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      eventList.removeWhere((item) => item.id == event.id);
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          notify == true
+              ? 'Event removed and notification sent.'
+              : 'Event removed successfully.',
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final filteredEvents = eventList.where((event) {
-      return event.name.toLowerCase().contains(
-            searchText.toLowerCase(),
-          );
+      return event.name.toLowerCase().contains(searchText.toLowerCase());
     }).toList();
 
     return SafeArea(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // BLUE HEADER
           Container(
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 22),
@@ -743,16 +924,35 @@ class _EventsPageState extends State<EventsPage> {
                 bottomRight: Radius.circular(25),
               ),
             ),
-            child: const Text(
-              'Events',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 30,
-                fontWeight: FontWeight.bold,
-              ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Events',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 30,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                if (widget.isAdmin)
+                  IconButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AddEventPage(isAdmin: true),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.add_circle_outline, color: Colors.white),
+                    tooltip: 'Add event',
+                  )
+                else
+                  const SizedBox.shrink(),
+              ],
             ),
           ),
-
           Padding(
             padding: const EdgeInsets.all(18),
             child: TextField(
@@ -773,7 +973,6 @@ class _EventsPageState extends State<EventsPage> {
               ),
             ),
           ),
-
           Expanded(
             child: filteredEvents.isEmpty
                 ? const Center(
@@ -791,6 +990,22 @@ class _EventsPageState extends State<EventsPage> {
                     itemBuilder: (context, index) {
                       return EventCard(
                         event: filteredEvents[index],
+                        onEdit: widget.isAdmin
+                            ? () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => AddEventPage(
+                                      isAdmin: true,
+                                      eventToEdit: filteredEvents[index],
+                                    ),
+                                  ),
+                                );
+                              }
+                            : null,
+                        onDelete: widget.isAdmin
+                            ? () => _deleteEvent(filteredEvents[index])
+                            : null,
                       );
                     },
                   ),
@@ -801,13 +1016,16 @@ class _EventsPageState extends State<EventsPage> {
   }
 }
 
-
 class EventCard extends StatelessWidget {
   final Event event;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
   const EventCard({
     super.key,
     required this.event,
+    this.onEdit,
+    this.onDelete,
   });
 
   @override
@@ -821,13 +1039,10 @@ class EventCard extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
         onTap: () {
-          // EVENTS → EVENT DETAILS
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => EventDetailsPage(
-                event: event,
-              ),
+              builder: (_) => EventDetailsPage(event: event),
             ),
           );
         },
@@ -835,12 +1050,11 @@ class EventCard extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              // EVENT IMAGE PLACEHOLDER
               Container(
                 width: 85,
                 height: 85,
                 decoration: BoxDecoration(
-                  color: event.color.withOpacity(0.15),
+                  color: event.color.withAlpha(38),
                   borderRadius: BorderRadius.circular(15),
                 ),
                 child: Icon(
@@ -849,9 +1063,7 @@ class EventCard extends StatelessWidget {
                   size: 40,
                 ),
               ),
-
               const SizedBox(width: 13),
-
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -865,9 +1077,7 @@ class EventCard extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-
                     const SizedBox(height: 6),
-
                     Row(
                       children: [
                         const Icon(
@@ -887,9 +1097,7 @@ class EventCard extends StatelessWidget {
                         ),
                       ],
                     ),
-
                     const SizedBox(height: 4),
-
                     Row(
                       children: [
                         const Icon(
@@ -909,13 +1117,9 @@ class EventCard extends StatelessWidget {
                         ),
                       ],
                     ),
-
                     const SizedBox(height: 6),
-
                     Text(
-                      event.price == 0
-                          ? 'FREE'
-                          : '\$${event.price.toStringAsFixed(2)}',
+                      event.price == 0 ? 'FREE' : '\$${event.price.toStringAsFixed(2)}',
                       style: TextStyle(
                         color: event.color,
                         fontWeight: FontWeight.bold,
@@ -924,10 +1128,24 @@ class EventCard extends StatelessWidget {
                   ],
                 ),
               ),
-
-              const Icon(
-                Icons.chevron_right,
-                color: Colors.grey,
+              Column(
+                children: [
+                  if (onEdit != null)
+                    IconButton(
+                      onPressed: onEdit,
+                      icon: const Icon(Icons.edit_outlined, color: Colors.blue),
+                      tooltip: 'Edit event',
+                    ),
+                  if (onDelete != null)
+                    IconButton(
+                      onPressed: onDelete,
+                      icon: const Icon(Icons.delete_outline, color: Colors.red),
+                      tooltip: 'Delete event',
+                    )
+                  else if (onEdit == null)
+                    const SizedBox(height: 48),
+                  const Icon(Icons.chevron_right, color: Colors.grey),
+                ],
               ),
             ],
           ),
@@ -937,6 +1155,206 @@ class EventCard extends StatelessWidget {
   }
 }
 
+class AddEventPage extends StatefulWidget {
+  final bool isAdmin;
+  final Event? eventToEdit;
+
+  const AddEventPage({
+    super.key,
+    this.isAdmin = false,
+    this.eventToEdit,
+  });
+
+  @override
+  State<AddEventPage> createState() => _AddEventPageState();
+}
+
+class _AddEventPageState extends State<AddEventPage> {
+  final nameController = TextEditingController();
+  final locationController = TextEditingController();
+  final dateController = TextEditingController();
+  final descriptionController = TextEditingController();
+  final priceController = TextEditingController(text: '0');
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.eventToEdit != null) {
+      final event = widget.eventToEdit!;
+      nameController.text = event.name;
+      locationController.text = event.location;
+      dateController.text = event.date;
+      descriptionController.text = event.description;
+      priceController.text = event.price == 0 ? '0' : event.price.toString();
+    }
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 3650)),
+    );
+
+    if (picked != null) {
+      dateController.text = picked.toString().split(' ').first;
+    }
+  }
+
+  void _saveEvent() {
+    final name = nameController.text.trim();
+    final location = locationController.text.trim();
+    final date = dateController.text.trim();
+    final description = descriptionController.text.trim();
+    final price = double.tryParse(priceController.text.trim()) ?? 0;
+
+    if (name.isEmpty || location.isEmpty || date.isEmpty || description.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please complete all event details.')),
+      );
+      return;
+    }
+
+    if (widget.eventToEdit != null) {
+      final index = eventList.indexWhere((event) => event.id == widget.eventToEdit!.id);
+      if (index >= 0) {
+        final updatedEvent = Event(
+          id: widget.eventToEdit!.id,
+          name: name,
+          description: description,
+          location: location,
+          date: date,
+          price: price,
+          icon: widget.eventToEdit!.icon,
+          color: widget.eventToEdit!.color,
+        );
+        setState(() {
+          eventList[index] = updatedEvent;
+        });
+      }
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Event updated successfully.')),
+      );
+      return;
+    }
+
+    final newEvent = Event(
+      id: DateTime.now().millisecondsSinceEpoch,
+      name: name,
+      description: description,
+      location: location,
+      date: date,
+      price: price,
+      icon: Icons.event,
+      color: Colors.indigo,
+    );
+
+    setState(() {
+      eventList.insert(0, newEvent);
+    });
+
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Event added successfully.')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.isAdmin) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Access denied'),
+          backgroundColor: Colors.red,
+          foregroundColor: Colors.white,
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.block, size: 70, color: Colors.red),
+                const SizedBox(height: 20),
+                const Text(
+                  'Only admins can manage events.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Back'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.eventToEdit == null ? 'Add Event' : 'Edit Event'),
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(labelText: 'Event Name'),
+            ),
+            const SizedBox(height: 15),
+            TextField(
+              controller: locationController,
+              decoration: const InputDecoration(labelText: 'Location'),
+            ),
+            const SizedBox(height: 15),
+            TextField(
+              controller: dateController,
+              readOnly: true,
+              onTap: _pickDate,
+              decoration: const InputDecoration(
+                labelText: 'Date',
+                suffixIcon: Icon(Icons.calendar_today),
+              ),
+            ),
+            const SizedBox(height: 15),
+            TextField(
+              controller: priceController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Ticket Price'),
+            ),
+            const SizedBox(height: 15),
+            TextField(
+              controller: descriptionController,
+              maxLines: 4,
+              decoration: const InputDecoration(labelText: 'Description'),
+            ),
+            const SizedBox(height: 25),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                onPressed: _saveEvent,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                ),
+                child: Text(widget.eventToEdit == null ? 'SAVE EVENT' : 'UPDATE EVENT'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class EventDetailsPage extends StatelessWidget {
   final Event event;
@@ -954,18 +1372,16 @@ class EventDetailsPage extends StatelessWidget {
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
       ),
-
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // LARGE EVENT IMAGE
             Container(
               width: double.infinity,
               height: 220,
               decoration: BoxDecoration(
-                color: event.color.withOpacity(0.15),
+                color: event.color.withAlpha(38),
                 borderRadius: BorderRadius.circular(22),
               ),
               child: Icon(
@@ -974,9 +1390,7 @@ class EventDetailsPage extends StatelessWidget {
                 color: event.color,
               ),
             ),
-
             const SizedBox(height: 20),
-
             Text(
               event.name,
               style: const TextStyle(
@@ -984,51 +1398,33 @@ class EventDetailsPage extends StatelessWidget {
                 fontWeight: FontWeight.bold,
               ),
             ),
-
             const SizedBox(height: 18),
-
-            // DATE
             Row(
               children: [
-                const Icon(
-                  Icons.calendar_month,
-                  color: Colors.blue,
-                ),
+                const Icon(Icons.calendar_month, color: Colors.blue),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     event.date,
-                    style: const TextStyle(
-                      fontSize: 16,
-                    ),
+                    style: const TextStyle(fontSize: 16),
                   ),
                 ),
               ],
             ),
-
             const SizedBox(height: 12),
-
-            // LOCATION
             Row(
               children: [
-                const Icon(
-                  Icons.location_on,
-                  color: Colors.blue,
-                ),
+                const Icon(Icons.location_on, color: Colors.blue),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     event.location,
-                    style: const TextStyle(
-                      fontSize: 16,
-                    ),
+                    style: const TextStyle(fontSize: 16),
                   ),
                 ),
               ],
             ),
-
             const SizedBox(height: 28),
-
             const Text(
               'About this event',
               style: TextStyle(
@@ -1036,9 +1432,7 @@ class EventDetailsPage extends StatelessWidget {
                 fontWeight: FontWeight.bold,
               ),
             ),
-
             const SizedBox(height: 10),
-
             Text(
               event.description,
               style: const TextStyle(
@@ -1047,10 +1441,7 @@ class EventDetailsPage extends StatelessWidget {
                 color: Colors.black87,
               ),
             ),
-
             const SizedBox(height: 25),
-
-            // AVAILABLE SLOTS
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(15),
@@ -1060,10 +1451,7 @@ class EventDetailsPage extends StatelessWidget {
               ),
               child: const Row(
                 children: [
-                  Icon(
-                    Icons.confirmation_num,
-                    color: Colors.green,
-                  ),
+                  Icon(Icons.confirmation_num, color: Colors.green),
                   SizedBox(width: 10),
                   Text(
                     '150 slots available',
@@ -1075,23 +1463,16 @@ class EventDetailsPage extends StatelessWidget {
                 ],
               ),
             ),
-
             const SizedBox(height: 20),
-
-            // PRICE
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
                   'Price per ticket',
-                  style: TextStyle(
-                    fontSize: 17,
-                  ),
+                  style: TextStyle(fontSize: 17),
                 ),
                 Text(
-                  event.price == 0
-                      ? 'FREE'
-                      : '\$${event.price.toStringAsFixed(2)}',
+                  event.price == 0 ? 'FREE' : '\$${event.price.toStringAsFixed(2)}',
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
@@ -1100,10 +1481,7 @@ class EventDetailsPage extends StatelessWidget {
                 ),
               ],
             ),
-
             const SizedBox(height: 25),
-
-            // BOOK NOW
             SizedBox(
               width: double.infinity,
               height: 55,
@@ -1112,9 +1490,7 @@ class EventDetailsPage extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => BookingPage(
-                        event: event,
-                      ),
+                      builder: (_) => BookingPage(event: event),
                     ),
                   );
                 },
@@ -1134,7 +1510,6 @@ class EventDetailsPage extends StatelessWidget {
                 ),
               ),
             ),
-
             const SizedBox(height: 20),
           ],
         ),
@@ -1142,7 +1517,6 @@ class EventDetailsPage extends StatelessWidget {
     );
   }
 }
-
 
 class BookingPage extends StatefulWidget {
   final Event event;
@@ -1160,20 +1534,15 @@ class _BookingPageState extends State<BookingPage> {
   final nameController = TextEditingController();
   final emailController = TextEditingController();
   final requestController = TextEditingController();
-
   int quantity = 1;
 
-  double get total {
-    return widget.event.price * quantity;
-  }
+  double get total => widget.event.price * quantity;
 
   void confirmBooking() {
     if (nameController.text.trim().isEmpty ||
         emailController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter your name and email.'),
-        ),
+        const SnackBar(content: Text('Please enter your name and email.')),
       );
       return;
     }
@@ -1191,9 +1560,7 @@ class _BookingPageState extends State<BookingPage> {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (_) => BookingSuccessPage(
-          booking: booking,
-        ),
+        builder: (_) => BookingSuccessPage(booking: booking),
       ),
     );
   }
@@ -1206,13 +1573,11 @@ class _BookingPageState extends State<BookingPage> {
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
       ),
-
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // EVENT
             Text(
               widget.event.name,
               style: const TextStyle(
@@ -1220,25 +1585,16 @@ class _BookingPageState extends State<BookingPage> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-
             const SizedBox(height: 5),
-
             Text(
               widget.event.date,
-              style: const TextStyle(
-                color: Colors.grey,
-              ),
+              style: const TextStyle(color: Colors.grey),
             ),
-
             Text(
               widget.event.location,
-              style: const TextStyle(
-                color: Colors.grey,
-              ),
+              style: const TextStyle(color: Colors.grey),
             ),
-
             const SizedBox(height: 25),
-
             const Text(
               'Your Information',
               style: TextStyle(
@@ -1246,9 +1602,7 @@ class _BookingPageState extends State<BookingPage> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-
             const SizedBox(height: 15),
-
             TextField(
               controller: nameController,
               decoration: InputDecoration(
@@ -1259,9 +1613,7 @@ class _BookingPageState extends State<BookingPage> {
                 ),
               ),
             ),
-
             const SizedBox(height: 15),
-
             TextField(
               controller: emailController,
               keyboardType: TextInputType.emailAddress,
@@ -1273,9 +1625,7 @@ class _BookingPageState extends State<BookingPage> {
                 ),
               ),
             ),
-
             const SizedBox(height: 25),
-
             const Text(
               'Number of Tickets',
               style: TextStyle(
@@ -1283,9 +1633,7 @@ class _BookingPageState extends State<BookingPage> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-
             const SizedBox(height: 12),
-
             Row(
               children: [
                 IconButton(
@@ -1296,21 +1644,15 @@ class _BookingPageState extends State<BookingPage> {
                           });
                         }
                       : null,
-                  icon: const Icon(
-                    Icons.remove_circle,
-                    size: 35,
-                  ),
+                  icon: const Icon(Icons.remove_circle, size: 35),
                   color: Colors.green,
                 ),
-
                 Container(
                   width: 65,
                   padding: const EdgeInsets.all(10),
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    border: Border.all(
-                      color: Colors.grey,
-                    ),
+                    border: Border.all(color: Colors.grey),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
@@ -1321,33 +1663,23 @@ class _BookingPageState extends State<BookingPage> {
                     ),
                   ),
                 ),
-
                 IconButton(
                   onPressed: () {
                     setState(() {
                       quantity++;
                     });
                   },
-                  icon: const Icon(
-                    Icons.add_circle,
-                    size: 35,
-                  ),
+                  icon: const Icon(Icons.add_circle, size: 35),
                   color: Colors.green,
                 ),
               ],
             ),
-
             const SizedBox(height: 20),
-
             const Text(
               'Special Requests (Optional)',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontWeight: FontWeight.bold),
             ),
-
             const SizedBox(height: 8),
-
             TextField(
               controller: requestController,
               maxLines: 3,
@@ -1358,10 +1690,7 @@ class _BookingPageState extends State<BookingPage> {
                 ),
               ),
             ),
-
             const SizedBox(height: 25),
-
-            // TOTAL
             Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
@@ -1379,9 +1708,7 @@ class _BookingPageState extends State<BookingPage> {
                     ),
                   ),
                   Text(
-                    widget.event.price == 0
-                        ? 'FREE'
-                        : '\$${total.toStringAsFixed(2)}',
+                    widget.event.price == 0 ? 'FREE' : '\$${total.toStringAsFixed(2)}',
                     style: const TextStyle(
                       fontSize: 22,
                       color: Colors.green,
@@ -1391,9 +1718,7 @@ class _BookingPageState extends State<BookingPage> {
                 ],
               ),
             ),
-
             const SizedBox(height: 25),
-
             SizedBox(
               width: double.infinity,
               height: 55,
@@ -1422,8 +1747,6 @@ class _BookingPageState extends State<BookingPage> {
   }
 }
 
-
-
 class BookingSuccessPage extends StatelessWidget {
   final Booking booking;
 
@@ -1441,7 +1764,6 @@ class BookingSuccessPage extends StatelessWidget {
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
       ),
-
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(25),
@@ -1453,9 +1775,7 @@ class BookingSuccessPage extends StatelessWidget {
                 size: 90,
                 color: Colors.green,
               ),
-
               const SizedBox(height: 20),
-
               const Text(
                 'Booking Successful!',
                 textAlign: TextAlign.center,
@@ -1464,9 +1784,7 @@ class BookingSuccessPage extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-
               const SizedBox(height: 10),
-
               Text(
                 'Your booking for ${booking.event.name} has been confirmed.',
                 textAlign: TextAlign.center,
@@ -1475,9 +1793,7 @@ class BookingSuccessPage extends StatelessWidget {
                   fontSize: 16,
                 ),
               ),
-
               const SizedBox(height: 30),
-
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
@@ -1495,15 +1811,9 @@ class BookingSuccessPage extends StatelessWidget {
                         fontSize: 19,
                       ),
                     ),
-
                     const SizedBox(height: 10),
-
-                    Text(
-                      'Tickets: ${booking.quantity}',
-                    ),
-
+                    Text('Tickets: ${booking.quantity}'),
                     const SizedBox(height: 5),
-
                     Text(
                       'Total: \$${booking.total.toStringAsFixed(2)}',
                       style: const TextStyle(
@@ -1514,26 +1824,19 @@ class BookingSuccessPage extends StatelessWidget {
                   ],
                 ),
               ),
-
               const SizedBox(height: 30),
-
               SizedBox(
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.popUntil(
-                      context,
-                      (route) => route.isFirst,
-                    );
+                    Navigator.popUntil(context, (route) => route.isFirst);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
                     foregroundColor: Colors.white,
                   ),
-                  child: const Text(
-                    'BACK TO HOME',
-                  ),
+                  child: const Text('BACK TO HOME'),
                 ),
               ),
             ],
@@ -1544,9 +1847,43 @@ class BookingSuccessPage extends StatelessWidget {
   }
 }
 
-
-class BookingTabPage extends StatelessWidget {
+class BookingTabPage extends StatefulWidget {
   const BookingTabPage({super.key});
+
+  @override
+  State<BookingTabPage> createState() => _BookingTabPageState();
+}
+
+class _BookingTabPageState extends State<BookingTabPage> {
+  Future<void> _removeBooking(int index) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete booking?'),
+        content: const Text(
+          'This will permanently remove the booking from your list.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted) return;
+
+    if (confirm == true) {
+      setState(() {
+        bookings.removeAt(index);
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1567,7 +1904,6 @@ class BookingTabPage extends StatelessWidget {
                     ),
                   ),
                 ),
-
                 const Expanded(
                   child: Center(
                     child: Column(
@@ -1590,9 +1926,7 @@ class BookingTabPage extends StatelessWidget {
                         SizedBox(height: 5),
                         Text(
                           'Your confirmed bookings will appear here.',
-                          style: TextStyle(
-                            color: Colors.grey,
-                          ),
+                          style: TextStyle(color: Colors.grey),
                         ),
                       ],
                     ),
@@ -1615,7 +1949,6 @@ class BookingTabPage extends StatelessWidget {
                     ),
                   ),
                 ),
-
                 Expanded(
                   child: ListView.builder(
                     padding: const EdgeInsets.all(18),
@@ -1628,42 +1961,53 @@ class BookingTabPage extends StatelessWidget {
                         child: Padding(
                           padding: const EdgeInsets.all(18),
                           child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                booking.event.name,
-                                style: const TextStyle(
-                                  fontSize: 19,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          booking.event.name,
+                                          style: const TextStyle(
+                                            fontSize: 19,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 10),
+                                        Text(
+                                          booking.event.date,
+                                          style: const TextStyle(
+                                            color: Colors.grey,
+                                          ),
+                                        ),
+                                        Text(
+                                          booking.event.location,
+                                          style: const TextStyle(
+                                            color: Colors.grey,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  IconButton(
+                                    onPressed: () => _removeBooking(index),
+                                    icon: const Icon(Icons.delete_outline),
+                                    color: Colors.red,
+                                    tooltip: 'Delete booking',
+                                  ),
+                                ],
                               ),
-
-                              const SizedBox(height: 10),
-
-                              Text(
-                                booking.event.date,
-                                style: const TextStyle(
-                                  color: Colors.grey,
-                                ),
-                              ),
-
-                              Text(
-                                booking.event.location,
-                                style: const TextStyle(
-                                  color: Colors.grey,
-                                ),
-                              ),
-
                               const Divider(height: 25),
-
                               Row(
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(
-                                    'Tickets: ${booking.quantity}',
-                                  ),
+                                  Text('Tickets: ${booking.quantity}'),
                                   Text(
                                     '\$${booking.total.toStringAsFixed(2)}',
                                     style: const TextStyle(
@@ -1673,9 +2017,7 @@ class BookingTabPage extends StatelessWidget {
                                   ),
                                 ],
                               ),
-
                               const SizedBox(height: 10),
-
                               const Row(
                                 children: [
                                   Icon(
@@ -1706,6 +2048,153 @@ class BookingTabPage extends StatelessWidget {
   }
 }
 
+class NotificationPage extends StatefulWidget {
+  const NotificationPage({super.key});
+
+  @override
+  State<NotificationPage> createState() => _NotificationPageState();
+}
+
+class _NotificationPageState extends State<NotificationPage> {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Notifications'),
+        backgroundColor: Colors.orange,
+        foregroundColor: Colors.white,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          SwitchListTile(
+            title: const Text('Event updates'),
+            subtitle: const Text('Get updates about upcoming and removed events.'),
+            value: eventNotificationsEnabled,
+            onChanged: (value) {
+              setState(() {
+                eventNotificationsEnabled = value;
+              });
+            },
+          ),
+          SwitchListTile(
+            title: const Text('Booking alerts'),
+            subtitle: const Text('Receive updates when bookings are confirmed.'),
+            value: bookingNotificationsEnabled,
+            onChanged: (value) {
+              setState(() {
+                bookingNotificationsEnabled = value;
+              });
+            },
+          ),
+          SwitchListTile(
+            title: const Text('Push notifications'),
+            subtitle: const Text('Allow app notifications on your device.'),
+            value: appNotificationsEnabled,
+            onChanged: (value) {
+              setState(() {
+                appNotificationsEnabled = value;
+              });
+            },
+          ),
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Notification summary',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text('• Event updates: ${eventNotificationsEnabled ? 'Active' : 'Off'}'),
+                Text('• Booking alerts: ${bookingNotificationsEnabled ? 'Active' : 'Off'}'),
+                Text('• Push notifications: ${appNotificationsEnabled ? 'Active' : 'Off'}'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class SettingsPage extends StatefulWidget {
+  const SettingsPage({super.key});
+
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  bool darkMode = appThemeNotifier.value;
+  bool saveSession = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Settings'),
+        backgroundColor: Colors.grey,
+        foregroundColor: Colors.white,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          SwitchListTile(
+            title: const Text('Dark mode'),
+            subtitle: const Text('Use a darker color theme for the app.'),
+            value: darkMode,
+            onChanged: (value) {
+              setState(() {
+                darkMode = value;
+                appThemeNotifier.value = value;
+              });
+            },
+          ),
+          SwitchListTile(
+            title: const Text('Remember session'),
+            subtitle: const Text('Keep your login session active on the device.'),
+            value: saveSession,
+            onChanged: (value) {
+              setState(() {
+                saveSession = value;
+              });
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.help_outline),
+            title: const Text('Help & support'),
+            subtitle: const Text('Contact support for app assistance.'),
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Support is available in the app help center.')),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.privacy_tip_outlined),
+            title: const Text('Privacy policy'),
+            subtitle: const Text('Review the privacy terms and app data use.'),
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Privacy policy settings are available soon.')),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class ProfilePage extends StatelessWidget {
   final String userName;
@@ -1724,15 +2213,14 @@ class ProfilePage extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // PURPLE HEADER
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(25),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
                   colors: [
-                    Color(0xff663cff),
-                    Color(0xff9b4dff),
+                    Color(0xFF663CFF),
+                    Color(0xFF9B4DFF),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(22),
@@ -1748,9 +2236,7 @@ class ProfilePage extends StatelessWidget {
                       color: Colors.deepPurple,
                     ),
                   ),
-
                   const SizedBox(height: 12),
-
                   Text(
                     userName,
                     style: const TextStyle(
@@ -1759,21 +2245,15 @@ class ProfilePage extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-
                   const SizedBox(height: 5),
-
                   Text(
                     email,
-                    style: const TextStyle(
-                      color: Colors.white70,
-                    ),
+                    style: const TextStyle(color: Colors.white70),
                   ),
                 ],
               ),
             ),
-
             const SizedBox(height: 25),
-
             ProfileOption(
               icon: Icons.confirmation_num_outlined,
               title: 'My Bookings',
@@ -1783,55 +2263,40 @@ class ProfilePage extends StatelessWidget {
                 showBookingHistory(context);
               },
             ),
-
             ProfileOption(
               icon: Icons.person_outline,
               title: 'Personal Information',
               subtitle: 'View your account information',
               color: Colors.green,
               onTap: () {
-                showPersonalInfo(
-                  context,
-                  userName,
-                  email,
-                );
+                showPersonalInfo(context, userName, email);
               },
             ),
-
             ProfileOption(
               icon: Icons.notifications_none,
               title: 'Notifications',
               subtitle: 'Manage notifications',
               color: Colors.orange,
               onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Notifications settings coming soon.',
-                    ),
-                  ),
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const NotificationPage()),
                 );
               },
             ),
-
             ProfileOption(
               icon: Icons.settings_outlined,
               title: 'Settings',
               subtitle: 'App preferences',
               color: Colors.grey,
               onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Settings coming soon.',
-                    ),
-                  ),
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SettingsPage()),
                 );
               },
             ),
-
             const SizedBox(height: 15),
-
             SizedBox(
               width: double.infinity,
               height: 52,
@@ -1839,9 +2304,7 @@ class ProfilePage extends StatelessWidget {
                 onPressed: () {
                   Navigator.pushAndRemoveUntil(
                     context,
-                    MaterialPageRoute(
-                      builder: (_) => const LoginPage(),
-                    ),
+                    MaterialPageRoute(builder: (_) => const LoginPage()),
                     (route) => false,
                   );
                 },
@@ -1855,11 +2318,7 @@ class ProfilePage extends StatelessWidget {
     );
   }
 
-  void showPersonalInfo(
-    BuildContext context,
-    String name,
-    String email,
-  ) {
+  void showPersonalInfo(BuildContext context, String name, String email) {
     showDialog(
       context: context,
       builder: (_) {
@@ -1871,28 +2330,20 @@ class ProfilePage extends StatelessWidget {
             children: [
               const Text(
                 'Full Name',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontWeight: FontWeight.bold),
               ),
               Text(name),
-
               const SizedBox(height: 15),
-
               const Text(
                 'Email',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontWeight: FontWeight.bold),
               ),
               Text(email),
             ],
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
+              onPressed: () => Navigator.pop(context),
               child: const Text('CLOSE'),
             ),
           ],
@@ -1930,23 +2381,17 @@ class ProfilePage extends StatelessWidget {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-
                       const SizedBox(height: 15),
-
                       Expanded(
                         child: ListView.builder(
                           itemCount: bookings.length,
                           itemBuilder: (context, index) {
                             final booking = bookings[index];
-
                             return Card(
-                              margin: const EdgeInsets.only(
-                                bottom: 12,
-                              ),
+                              margin: const EdgeInsets.only(bottom: 12),
                               child: ListTile(
                                 leading: CircleAvatar(
-                                  backgroundColor:
-                                      Colors.blue.shade50,
+                                  backgroundColor: Colors.blue.shade50,
                                   child: const Icon(
                                     Icons.event,
                                     color: Colors.blue,
@@ -1980,7 +2425,6 @@ class ProfilePage extends StatelessWidget {
   }
 }
 
-
 class ProfileOption extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -2008,22 +2452,15 @@ class ProfileOption extends StatelessWidget {
           vertical: 5,
         ),
         leading: CircleAvatar(
-          backgroundColor: color.withOpacity(0.12),
-          child: Icon(
-            icon,
-            color: color,
-          ),
+          backgroundColor: color.withAlpha(30),
+          child: Icon(icon, color: color),
         ),
         title: Text(
           title,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         subtitle: Text(subtitle),
-        trailing: const Icon(
-          Icons.chevron_right,
-        ),
+        trailing: const Icon(Icons.chevron_right),
       ),
     );
   }
